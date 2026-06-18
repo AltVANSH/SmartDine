@@ -3,6 +3,7 @@ const TableSession = require('../models/TableSession');
 const Table = require('../models/Table');
 const QueueEntry = require('../models/QueueEntry');
 const crypto = require('crypto');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Helper to find the latest active table session for a user
 const findActiveSession = async (userId) => {
@@ -84,7 +85,12 @@ const getBill = async (req, res) => {
     // Build the consolidated bill
     const subtotal = orders.reduce((sum, order) => sum + order.totalAmount, 0);
     const tax = parseFloat((subtotal * 0.1).toFixed(2)); // 10% tax
-    const grandTotal = parseFloat((subtotal + tax).toFixed(2));
+    
+    // Tip is based on the selected percentage of the subtotal
+    const tipPercentage = session.tipPercentage || 0;
+    const tipAmount = parseFloat((subtotal * (tipPercentage / 100)).toFixed(2));
+    
+    const grandTotal = parseFloat((subtotal + tax + tipAmount).toFixed(2));
 
     // Build per-user itemized breakdown for "Pay by Item" split
     const itemizedByUser = {};
@@ -117,12 +123,15 @@ const getBill = async (req, res) => {
       }
     }
 
-    // Add tax proportionally to each user's share
+    // Add tax and tip proportionally to each user's share
     for (const uid of Object.keys(itemizedByUser)) {
       const share = itemizedByUser[uid].subtotal;
       const proportionalTax = subtotal > 0 ? parseFloat(((share / subtotal) * tax).toFixed(2)) : 0;
+      const proportionalTip = subtotal > 0 ? parseFloat(((share / subtotal) * tipAmount).toFixed(2)) : 0;
+      
       itemizedByUser[uid].taxShare = proportionalTax;
-      itemizedByUser[uid].total = parseFloat((share + proportionalTax).toFixed(2));
+      itemizedByUser[uid].tipShare = proportionalTip;
+      itemizedByUser[uid].total = parseFloat((share + proportionalTax + proportionalTip).toFixed(2));
     }
 
     // "Split Evenly" calculation
@@ -133,10 +142,12 @@ const getBill = async (req, res) => {
       sessionId: session._id.toString(),
       tableNumber: session.tableNumber,
       paymentSplitMethod: session.paymentSplitMethod,
+      tipPercentage: session.tipPercentage,
       paymentBreakdown: session.paymentBreakdown || {},
       orders,
       subtotal: parseFloat(subtotal.toFixed(2)),
       tax,
+      tipAmount,
       grandTotal,
       participantCount,
       splitEvenlyPerHead,
@@ -192,6 +203,116 @@ const setSplitMethod = async (req, res) => {
     });
   } catch (error) {
     console.error('Error setting split method:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Host sets the tip percentage for the session
+// @route   POST /api/payment/tip
+// @access  Private (Host only)
+const setTip = async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const userId = req.user._id;
+    const { percentage } = req.body;
+
+    const session = await findActiveSession(userId);
+    if (!session) {
+      return res.status(404).json({ message: 'No active table session found.' });
+    }
+
+    if (session.hostId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Only the host can set the tip.' });
+    }
+
+    session.tipPercentage = Number(percentage) || 0;
+    await session.save();
+
+    const sessionIdStr = session._id.toString();
+
+    // Notify all guests that tip was updated so they can fetch the updated bill
+    io.to(`table_room_${sessionIdStr}`).emit('tip_updated', {
+      tipPercentage: session.tipPercentage
+    });
+
+    res.status(200).json({ message: 'Tip updated successfully.', tipPercentage: session.tipPercentage });
+  } catch (error) {
+    console.error('Error setting tip:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Create a Stripe PaymentIntent for the user's specific share
+// @route   POST /api/payment/create-payment-intent
+// @access  Private
+const createPaymentIntent = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const session = await findActiveSession(userId);
+    
+    if (!session) {
+      return res.status(404).json({ message: 'No active table session found.' });
+    }
+
+    if (session.status !== 'paying') {
+      return res.status(400).json({ message: 'Checkout has not been initiated yet.' });
+    }
+
+    // Recalculate bill to find this user's specific share amount
+    const orders = await Order.find({ sessionId: session._id });
+    const subtotal = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const tax = parseFloat((subtotal * 0.1).toFixed(2));
+    const tipAmount = parseFloat((subtotal * (session.tipPercentage / 100)).toFixed(2));
+    const grandTotal = parseFloat((subtotal + tax + tipAmount).toFixed(2));
+
+    let myShareAmount = 0;
+    
+    if (session.paymentSplitMethod === 'split_evenly') {
+      const participantCount = session.participants.length || 1;
+      myShareAmount = parseFloat((grandTotal / participantCount).toFixed(2));
+    } else if (session.paymentSplitMethod === 'single_payer') {
+      if (session.hostId.toString() === userId.toString()) {
+        myShareAmount = grandTotal;
+      } else {
+        myShareAmount = 0; // Guests pay nothing
+      }
+    } else if (session.paymentSplitMethod === 'itemized') {
+      let mySubtotal = 0;
+      for (const order of orders) {
+        for (const item of order.items) {
+          if (item.addedBy?.toString() === userId.toString()) {
+            mySubtotal += (item.price * item.quantity);
+          }
+        }
+      }
+      const myTax = subtotal > 0 ? (mySubtotal / subtotal) * tax : 0;
+      const myTip = subtotal > 0 ? (mySubtotal / subtotal) * tipAmount : 0;
+      myShareAmount = parseFloat((mySubtotal + myTax + myTip).toFixed(2));
+    }
+
+    if (myShareAmount <= 0) {
+      return res.status(400).json({ message: 'No payment required.' });
+    }
+
+    // Create a PaymentIntent with the order amount in cents
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(myShareAmount * 100),
+      currency: 'usd',
+      automatic_payment_methods: {
+        enabled: true,
+      },
+      metadata: {
+        sessionId: session._id.toString(),
+        userId: userId.toString()
+      }
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret,
+      amount: myShareAmount
+    });
+  } catch (error) {
+    console.error('Error creating payment intent:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -283,5 +404,7 @@ const payShare = async (req, res) => {
 module.exports = {
   getBill,
   setSplitMethod,
+  setTip,
+  createPaymentIntent,
   payShare
 };

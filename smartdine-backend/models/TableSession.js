@@ -10,7 +10,8 @@ const tableSessionSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'ordering', 'paying', 'completed'], default: 'active' },
   estimatedEndTime: { type: Date, required: true }, // For Queue EWT calculations
   paymentSplitMethod: { type: String, enum: ['unselected', 'single_payer', 'split_evenly', 'itemized'], default: 'unselected' },
-  paymentBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} } // { [userId]: { paid: Boolean, paidAt: ISO string } }
+  paymentBreakdown: { type: mongoose.Schema.Types.Mixed, default: {} }, // { [userId]: { paid: Boolean, paidAt: ISO string } }
+  tipPercentage: { type: Number, default: 0 } // e.g., 0, 15, 18, 20
 }, { timestamps: true });
 
 module.exports = mongoose.model('TableSession', tableSessionSchema);
