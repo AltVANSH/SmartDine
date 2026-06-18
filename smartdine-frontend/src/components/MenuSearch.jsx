@@ -30,7 +30,7 @@ export default function MenuSearch({ onAddToCart, refreshTrigger }) {
         const endpoint = debouncedQuery.trim()
           ? `/api/menu/search?q=${encodeURIComponent(debouncedQuery)}`
           : '/api/menu';
-        const { data } = await axios.get(`http://localhost:5000${endpoint}`);
+        const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${endpoint}`);
         setMenuItems(data);
       } catch (err) {
         console.error('Failed to fetch menu', err);
@@ -49,7 +49,7 @@ export default function MenuSearch({ onAddToCart, refreshTrigger }) {
       const token = localStorage.getItem('token');
       // Call the backend API to add to cart
       await axios.post(
-        'http://localhost:5000/api/cart/add',
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/cart/add`,
         { menuItemId: item._id },
         {
           headers: {

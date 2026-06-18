@@ -50,7 +50,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const { data } = await axios.get('http://localhost:5000/api/orders/session', {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/session`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setActiveOrders(data);
@@ -63,7 +63,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const { data } = await axios.get('http://localhost:5000/api/queue/current-session', {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/queue/current-session`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -96,7 +96,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (sessionStatus === 'seated' && sessionId) {
       const token = localStorage.getItem('token');
-      const socket = io('http://localhost:5000', {
+      const socket = io(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}`, {
         auth: { token }
       });
 
@@ -169,7 +169,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       const { data } = await axios.post(
-        'http://localhost:5000/api/queue/join',
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/queue/join`,
         { partySize: Number(partySize) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -192,7 +192,7 @@ export default function Dashboard() {
     try {
       const token = localStorage.getItem('token');
       const { data } = await axios.post(
-        'http://localhost:5000/api/queue/join-table',
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/queue/join-table`,
         { joinCode: joinCode.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -21,7 +21,7 @@ export default function WaiterPage() {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.get('http://localhost:5000/api/orders/waiter', {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/waiter`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(data);
@@ -36,7 +36,7 @@ export default function WaiterPage() {
     fetchOrders();
 
     const token = localStorage.getItem('token');
-    const socket = io('http://localhost:5000', {
+    const socket = io(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}`, {
       auth: { token }
     });
     socketRef.current = socket;
@@ -72,7 +72,7 @@ export default function WaiterPage() {
   const handleServeOrder = async (orderId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/orders/${orderId}/serve`, {}, {
+      await axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${orderId}/serve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(prev => prev.filter(o => o._id !== orderId));

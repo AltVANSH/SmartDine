@@ -47,7 +47,7 @@ export default function AuthPage() {
         endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
       }
       
-      const { data } = await axios.post(`http://localhost:5000${endpoint}`, formData);
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${endpoint}`, formData);
       
       // Save token and user details to local storage
       localStorage.setItem('token', data.token);

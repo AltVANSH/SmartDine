@@ -27,7 +27,7 @@ export default function LandingPage() {
     setError('');
 
     try {
-      const { data } = await axios.post('http://localhost:5000/api/queue/validate-code', {
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/queue/validate-code`, {
         restaurantCode: restaurantCode.trim()
       });
 
@@ -55,7 +55,7 @@ export default function LandingPage() {
     // Simulate camera scanning after 2 seconds
     setTimeout(async () => {
       try {
-        const { data } = await axios.post('http://localhost:5000/api/queue/validate-code', {
+        const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/queue/validate-code`, {
           restaurantCode: 'TAJ-001'
         });
         if (data.status === 'success') {

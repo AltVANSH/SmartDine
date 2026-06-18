@@ -55,7 +55,7 @@ export default function KDSPage() {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.get('http://localhost:5000/api/orders/kds', {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/kds`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(data);
@@ -70,7 +70,7 @@ export default function KDSPage() {
     fetchOrders();
 
     const token = localStorage.getItem('token');
-    const socket = io('http://localhost:5000', {
+    const socket = io(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}`, {
       auth: { token }
     });
     socketRef.current = socket;
@@ -141,7 +141,7 @@ export default function KDSPage() {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`http://localhost:5000/api/orders/${orderId}/items/${itemId}/status`, 
+      await axios.put(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${orderId}/items/${itemId}/status`, 
         { status: nextStatus }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );

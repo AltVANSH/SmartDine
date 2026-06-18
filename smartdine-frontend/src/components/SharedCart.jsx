@@ -15,7 +15,7 @@ export default function SharedCart({ refreshTrigger, onOrderPlaced }) {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        'http://localhost:5000/api/orders',
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -34,7 +34,7 @@ export default function SharedCart({ refreshTrigger, onOrderPlaced }) {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const { data } = await axios.get('http://localhost:5000/api/cart', {
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/cart`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCartItems(data);
@@ -54,7 +54,7 @@ export default function SharedCart({ refreshTrigger, onOrderPlaced }) {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        'http://localhost:5000/api/cart/remove',
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/cart/remove`,
         { menuItemId },
         { headers: { Authorization: `Bearer ${token}` } }
       );

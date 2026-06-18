@@ -59,7 +59,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
     const fetchBill = async () => {
       try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.get('http://localhost:5000/api/payment/bill', {
+        const { data } = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/bill`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setBill(data);
@@ -76,7 +76,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
   const handleSetTip = async (percentage) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/payment/tip', 
+      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/tip`, 
         { percentage }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -88,7 +88,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
   const handleSetMethod = async (method) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/payment/method', 
+      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/method`, 
         { method }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -100,7 +100,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
   const handlePaySuccess = async () => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/payment/pay', {}, {
+      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/pay`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPaymentSuccess(true);
@@ -158,7 +158,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
     const getSecret = async () => {
       try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.post('http://localhost:5000/api/payment/create-payment-intent', {}, {
+        const { data } = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/create-payment-intent`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setClientSecret(data.clientSecret);
