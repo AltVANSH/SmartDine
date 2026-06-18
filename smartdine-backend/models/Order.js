@@ -13,7 +13,8 @@ const orderSchema = new mongoose.Schema({
   }],
   totalAmount: { type: Number, required: true },
   status: { type: String, enum: ['Received', 'Preparing', 'Ready', 'Served'], default: 'Received' },
-  paymentStatus: { type: String, enum: ['Pending', 'Partial', 'Paid'], default: 'Pending' }
+  paymentStatus: { type: String, enum: ['Pending', 'Partial', 'Paid'], default: 'Pending' },
+  servedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'StaffUser' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

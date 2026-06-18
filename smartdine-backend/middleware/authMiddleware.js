@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const DinerUser = require('../models/DinerUser');
+const StaffUser = require('../models/StaffUser');
 
 // This middleware will be used later to protect routes (like adding to cart)
 const protect = async (req, res, next) => {
@@ -14,8 +15,17 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Get user from the token payload (excluding the password)
-      req.user = await DinerUser.findById(decoded.id).select('-password');
+      let user = await DinerUser.findById(decoded.id).select('-password');
+      
+      if (!user) {
+        user = await StaffUser.findById(decoded.id).select('-password');
+      }
 
+      if (!user) {
+         return res.status(401).json({ message: 'Not authorized, user not found' });
+      }
+
+      req.user = user;
       next(); // Move on to the next function
     } catch (error) {
       console.error(error);

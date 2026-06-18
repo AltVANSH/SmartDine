@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Mail, Lock, User, ArrowRight, Loader2, UtensilsCrossed } from 'lucide-react';
+import { ChefHat, Mail, Lock, User, ArrowRight, Loader2, UtensilsCrossed, BadgeCheck } from 'lucide-react';
 import axios from 'axios';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isStaff, setIsStaff] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -12,13 +13,20 @@ export default function AuthPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    username: '',
+    password: '',
+    role: 'waiter'
   });
 
   // If user is already logged in, redirect them to dashboard
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) navigate('/dashboard');
+    const role = localStorage.getItem('staffRole');
+    if (token) {
+      if (role === 'kitchen') navigate('/kds');
+      else if (role === 'waiter') navigate('/waiter');
+      else navigate('/dashboard');
+    }
   }, [navigate]);
 
   const handleChange = (e) => {
@@ -32,15 +40,26 @@ export default function AuthPage() {
     setError('');
 
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      let endpoint = '';
+      if (isStaff) {
+        endpoint = isLogin ? '/api/auth/staff/login' : '/api/auth/staff/register';
+      } else {
+        endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      }
+      
       const { data } = await axios.post(`http://localhost:5000${endpoint}`, formData);
       
       // Save token and user details to local storage
       localStorage.setItem('token', data.token);
       localStorage.setItem('userName', data.name);
+      localStorage.setItem('userId', data._id);
       
-      // Redirect to the dashboard
-      navigate('/dashboard');
+      if (isStaff) {
+        localStorage.setItem('staffRole', data.role);
+        navigate(data.role === 'kitchen' ? '/kds' : '/waiter');
+      } else {
+        navigate('/dashboard');
+      }
       
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong. Is your backend running?');
@@ -76,9 +95,34 @@ export default function AuthPage() {
         </div>
 
         {/* Right Side - Form */}
-        <div className="md:w-7/12 p-8 md:p-16 flex flex-col justify-center relative">
+        <div className="md:w-7/12 p-8 md:p-12 flex flex-col justify-center relative">
           <div className="max-w-md w-full mx-auto">
-            <div className="flex items-center gap-3 mb-10 md:hidden justify-center">
+            
+            {/* Toggle Switch */}
+            <div className="flex justify-center mb-8">
+              <div className="bg-slate-100 p-1 rounded-xl inline-flex">
+                <button
+                  type="button"
+                  onClick={() => { setIsStaff(false); setError(''); }}
+                  className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all ${
+                    !isStaff ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Diner Portal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsStaff(true); setError(''); }}
+                  className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${
+                    isStaff ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <BadgeCheck size={16} /> Staff Portal
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mb-6 md:hidden justify-center">
               <div className="bg-emerald-100 p-2 rounded-xl">
                 <ChefHat className="text-emerald-600" size={28} />
               </div>
@@ -89,7 +133,9 @@ export default function AuthPage() {
               {isLogin ? 'Welcome back' : 'Create an account'}
             </h2>
             <p className="text-slate-500 mb-8">
-              {isLogin ? 'Enter your details to access your table.' : 'Sign up to start ordering with friends.'}
+              {isStaff
+                ? (isLogin ? 'Enter your staff details to access your dashboard.' : 'Sign up to manage operations.')
+                : (isLogin ? 'Enter your details to access your table.' : 'Sign up to start ordering with friends.')}
             </p>
 
             {error && (
@@ -119,23 +165,58 @@ export default function AuthPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <input
-                    type="email"
-                    name="email"
-                    required
-                    value={formData.email}
+              {isStaff && !isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                  <select
+                    name="role"
+                    value={formData.role}
                     onChange={handleChange}
-                    className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 transition-colors"
-                    placeholder="you@example.com"
-                  />
+                    className="block w-full pl-3 pr-10 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 transition-colors"
+                  >
+                    <option value="waiter">Waiter</option>
+                    <option value="kitchen">Kitchen Staff</option>
+                  </select>
                 </div>
-              </div>
+              )}
+
+              {isStaff ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <input
+                      type="text"
+                      name="username"
+                      required
+                      value={formData.username}
+                      onChange={handleChange}
+                      className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 transition-colors"
+                      placeholder="staff_user"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50 transition-colors"
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>

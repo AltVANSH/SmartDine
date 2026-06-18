@@ -1,0 +1,31 @@
+# SmartDine Task Checklist
+
+- [x] Feature 1: Menu Seeding Script & Restaurant Code Validation
+  - [x] Seed database script (`seed.js`)
+  - [x] Backend endpoint `/api/queue/validate-code`
+  - [x] Frontend landing page (`LandingPage.jsx`)
+  - [x] Secure dashboard routing in `App.jsx`
+- [x] Feature 2: Socket.io setup & Seating State Persistence
+  - [x] Backend status route `/api/queue/current-session`
+  - [x] Setup Socket.io on Express HTTP server
+  - [x] Handshake authentication using JWT on socket connections
+  - [x] Client connection & dynamic dashboard rendering (seated vs waiting vs idle)
+  - [x] Live participant list sync via `user_joined` events
+- [x] Feature 3: Shared Cart & Concurrency Core (Redis Caching & locks)
+  - [x] Add to / remove from Redis Cart endpoints
+  - [x] Redis lock (`SETNX`) implementation for low-stock items
+  - [x] Debounced menu search UI
+  - [x] Real-time cart broadcast via WebSockets
+- [x] Feature 4: Kitchen Display System (KDS) & Order Pipeline
+  - [x] Component 1: Order Backend Pipeline & Endpoints
+    - [x] Create Order model / verify schema
+    - [x] Create `orderController.js` (createOrder, getSessionOrders, getKDSOrders, updateOrderStatus)
+    - [x] Create `orderRoutes.js`
+    - [x] Update `server.js` (register routes, add `join_kitchen` socket room handler)
+  - [x] Component 2: Diner Dashboard Order Tracking UI & Sockets
+  - [x] Component 3: Kitchen Display System (KDS) Tablet Screen
+- [ ] Feature 5: Checkout & Atomic Splitting
+  - [ ] Itemized bill calculation and mock payment gateway
+  - [ ] Settle shares UI updates
+- [ ] Feature 6: Session Closure
+  - [ ] Table resets and waitlist auto-allocation triggers
