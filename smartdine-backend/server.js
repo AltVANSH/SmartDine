@@ -52,6 +52,8 @@ app.use('/api/queue', require('./routes/queueRoutes'));
 app.use('/api/cart', require('./routes/cartRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
+app.use('/api/tables', require('./routes/tableRoutes'));
+app.use('/api/manager', require('./routes/managerRoutes'));
 
 // Basic Health Check Route
 app.get('/api/health', (req, res) => {
@@ -139,6 +141,11 @@ io.on('connection', (socket) => {
   socket.on('join_waiter', () => {
     socket.join('waiter_room');
     console.log(`Socket User ${socket.userId} joined waiter_room`);
+  });
+
+  socket.on('join_manager', () => {
+    socket.join('manager_room');
+    console.log(`Socket User ${socket.userId} joined manager_room`);
   });
 
   socket.on('disconnect', () => {

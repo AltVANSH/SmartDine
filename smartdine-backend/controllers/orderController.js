@@ -72,6 +72,8 @@ const createOrder = async (req, res) => {
 
     // Notify KDS of the new order
     io.to('kitchen_room').emit('order_received', order);
+    // Notify Waiters of the new order
+    io.to('waiter_room').emit('waiter_order_updated', order);
 
     res.status(201).json(order);
   } catch (error) {
@@ -156,6 +158,7 @@ const updateOrderStatus = async (req, res) => {
     });
 
     io.to('kitchen_room').emit('kds_order_updated', order);
+    io.to('waiter_room').emit('waiter_order_updated', order); // Notify waiter room
 
     res.status(200).json(order);
   } catch (error) {
@@ -170,7 +173,7 @@ const updateOrderStatus = async (req, res) => {
 const getWaiterOrders = async (req, res) => {
   try {
     const orders = await Order.find({
-      status: 'Ready'
+      status: { $in: ['Received', 'Preparing', 'Ready'] }
     }).sort({ createdAt: 1 });
 
     res.status(200).json(orders);

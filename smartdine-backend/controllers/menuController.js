@@ -62,4 +62,42 @@ const addMenuItem = async (req, res) => {
   }
 };
 
-module.exports = { getMenu, searchMenu, addMenuItem };
+// @desc    Update menu item inventory (Kitchen/Manager only)
+// @route   PUT /api/menu/:id/inventory
+// @access  Private (Assume token validation in real app, keeping simple for demo)
+const updateInventory = async (req, res) => {
+  try {
+    const { stockQuantity, isAvailable } = req.body;
+    const menuItemId = req.params.id;
+
+    const menuItem = await Menu.findById(menuItemId);
+    if (!menuItem) {
+      return res.status(404).json({ message: 'Menu item not found' });
+    }
+
+    if (stockQuantity !== undefined) {
+      menuItem.stockQuantity = Math.max(0, parseInt(stockQuantity));
+      if (menuItem.stockQuantity === 0) {
+        menuItem.isAvailable = false;
+      }
+    }
+    
+    if (isAvailable !== undefined) {
+      menuItem.isAvailable = isAvailable;
+    }
+
+    await menuItem.save();
+
+    // Broadcast menu update to all clients to refresh their MenuSearch components
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('menu_updated');
+    }
+
+    res.status(200).json(menuItem);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getMenu, searchMenu, addMenuItem, updateInventory };

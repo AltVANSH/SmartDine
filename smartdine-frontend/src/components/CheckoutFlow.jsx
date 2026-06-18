@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Loader2, X, Receipt, CheckCircle, SplitSquareVertical, User, Users, Check } from 'lucide-react';
+import { Loader2, X, Receipt, CheckCircle, SplitSquareVertical, User, Users, Check, Banknote } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -116,6 +116,23 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
     setProcessingPayment(false);
   };
 
+  const handleCashRequest = async () => {
+    try {
+      setProcessingPayment(true);
+      const token = localStorage.getItem('token');
+      await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/payment/request-cash`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // The socket will update the bill automatically via refreshTrigger from Dashboard,
+      // but we can also trigger a local refetch if we want.
+      // For now, let's just let the socket handle it, or we could manually refresh:
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to request cash payment');
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -142,6 +159,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
   const hasSelectedMethod = bill.paymentSplitMethod !== 'unselected';
   const myPaymentStatus = bill.paymentBreakdown[userId];
   const amIPaid = myPaymentStatus?.paid;
+  const cashRequested = myPaymentStatus?.cash_requested;
 
   // Calculate my share based on the selected method
   let myShareAmount = 0;
@@ -154,7 +172,7 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
   }
 
   // Effect to fetch clientSecret if needed
-  if (hasSelectedMethod && myShareAmount > 0 && !amIPaid && !paymentSuccess && !clientSecret) {
+  if (hasSelectedMethod && myShareAmount > 0 && !amIPaid && !cashRequested && !paymentSuccess && !clientSecret) {
     const getSecret = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -306,6 +324,14 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
                   <h4 className="text-xl font-bold text-emerald-800 mb-1">You're all set!</h4>
                   <p className="text-emerald-600 text-sm font-medium">Waiting for others to finish paying...</p>
                 </div>
+              ) : cashRequested ? (
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 text-center mt-auto shadow-sm">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Banknote size={32} />
+                  </div>
+                  <h4 className="text-xl font-bold text-amber-800 mb-1">Cash Requested</h4>
+                  <p className="text-amber-600 text-sm font-medium">Please wait. A waiter is on their way to collect your cash.</p>
+                </div>
               ) : myShareAmount === 0 ? (
                 <div className="mt-auto">
                   <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center shadow-sm mb-4">
@@ -323,9 +349,25 @@ export default function CheckoutFlow({ onClose, isHost, userId, refreshTrigger }
               ) : (
                 <div className="mt-auto">
                   {clientSecret ? (
-                    <Elements stripe={stripePromise} options={{ clientSecret }}>
-                      <StripePaymentForm myShareAmount={myShareAmount} handlePaySuccess={handlePaySuccess} />
-                    </Elements>
+                    <div className="space-y-4">
+                      <Elements stripe={stripePromise} options={{ clientSecret }}>
+                        <StripePaymentForm myShareAmount={myShareAmount} handlePaySuccess={handlePaySuccess} />
+                      </Elements>
+                      
+                      <div className="relative flex items-center justify-center">
+                        <div className="absolute border-t border-slate-200 w-full"></div>
+                        <span className="bg-white px-3 text-xs text-slate-400 relative font-medium uppercase tracking-wider">Or</span>
+                      </div>
+
+                      <button 
+                        onClick={handleCashRequest}
+                        disabled={processingPayment}
+                        className="w-full py-4 rounded-xl font-bold text-slate-700 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-colors flex justify-center items-center gap-2"
+                      >
+                        {processingPayment ? <Loader2 className="animate-spin" size={20} /> : <Banknote size={20} />}
+                        <span>Pay with Cash</span>
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex justify-center p-8">
                       <Loader2 className="animate-spin text-emerald-500" size={32} />

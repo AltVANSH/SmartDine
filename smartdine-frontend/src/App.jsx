@@ -7,6 +7,8 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import KDSPage from './pages/KDSPage';
 import WaiterPage from './pages/WaiterPage';
+import ReceptionPage from './pages/ReceptionPage';
+import ManagerPage from './pages/ManagerPage';
 
 // PrivateRoute wrapper to protect the dashboard
 const PrivateRoute = ({ children }) => {
@@ -65,6 +67,19 @@ export default function App() {
             </PrivateRoute>
           } 
         />
+
+        {/* Protected Manager Dashboard Route */}
+        <Route 
+          path="/manager" 
+          element = {
+            <PrivateRoute>  
+              <ManagerPage />
+            </PrivateRoute>
+          } 
+        />
+
+        {/* Reception QR Display Route */}
+        <Route path="/reception/:code" element={<ReceptionPage />} />
       </Routes>
     </BrowserRouter>
   );

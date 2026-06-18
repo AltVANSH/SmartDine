@@ -25,6 +25,7 @@ export default function AuthPage() {
     if (token) {
       if (role === 'kitchen') navigate('/kds');
       else if (role === 'waiter') navigate('/waiter');
+      else if (role === 'manager') navigate('/manager');
       else navigate('/dashboard');
     }
   }, [navigate]);
@@ -56,7 +57,9 @@ export default function AuthPage() {
       
       if (isStaff) {
         localStorage.setItem('staffRole', data.role);
-        navigate(data.role === 'kitchen' ? '/kds' : '/waiter');
+        if (data.role === 'kitchen') navigate('/kds');
+        else if (data.role === 'manager') navigate('/manager');
+        else navigate('/waiter');
       } else {
         navigate('/dashboard');
       }
@@ -176,6 +179,7 @@ export default function AuthPage() {
                   >
                     <option value="waiter">Waiter</option>
                     <option value="kitchen">Kitchen Staff</option>
+                    <option value="manager">Manager</option>
                   </select>
                 </div>
               )}

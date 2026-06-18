@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { ChefHat, Clock, Loader2, ArrowLeft, AlertCircle, Volume2, VolumeX, CheckSquare, Square, CheckCircle2, UtensilsCrossed } from 'lucide-react';
+import { ChefHat, Clock, Loader2, ArrowLeft, AlertCircle, Volume2, VolumeX, CheckSquare, Square, CheckCircle2, UtensilsCrossed, Settings } from 'lucide-react';
+import InventoryModal from '../components/InventoryModal';
 
 export default function KDSPage() {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ export default function KDSPage() {
   const [now, setNow] = useState(Date.now());
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
   
   const socketRef = useRef(null);
 
@@ -187,6 +189,13 @@ export default function KDSPage() {
 
         <div className="flex items-center gap-4">
           <button 
+            onClick={() => setShowInventoryModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <Settings size={16} />
+            <span>Manage Inventory</span>
+          </button>
+          <button 
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
               soundEnabled 
@@ -315,6 +324,10 @@ export default function KDSPage() {
           </div>
         )}
       </main>
+
+      {showInventoryModal && (
+        <InventoryModal onClose={() => setShowInventoryModal(false)} />
+      )}
     </div>
   );
 }

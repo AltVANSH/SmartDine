@@ -13,54 +13,44 @@ const findActiveSession = async (userId) => {
   }).sort({ createdAt: -1 }); // Rule 7: Always sort by createdAt: -1
 };
 
-// Helper to try seating the next queue entry for a freed table
-const trySeatingNextInQueue = async (table, io) => {
-  // Find the oldest 'waiting' queue entry that fits this table
-  const nextInQueue = await QueueEntry.findOne({
-    status: 'waiting',
-    partySize: { $lte: table.capacity }
-  }).sort({ joinedAt: 1 });
+// Helper to compute and finalize the bill, and close the session
+const finalizeAndCloseSession = async (session, io) => {
+  // 1. Mark all orders for this session as fully Paid
+  await Order.updateMany(
+    { sessionId: session._id },
+    { $set: { paymentStatus: 'Paid' } }
+  );
 
-  if (!nextInQueue) {
-    // No one waiting, simply mark table as available
-    table.status = 'available';
-    await table.save();
-    console.log(`Table ${table.tableNumber} is now available.`);
-    return;
-  }
+  // 2. Compute the final bill summary
+  const orders = await Order.find({ sessionId: session._id });
+  const subtotal = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const tax = parseFloat((subtotal * 0.1).toFixed(2));
+  const tipPercentage = session.tipPercentage || 0;
+  const tipAmount = parseFloat((subtotal * (tipPercentage / 100)).toFixed(2));
+  const grandTotal = parseFloat((subtotal + tax + tipAmount).toFixed(2));
 
-  // Seat the next guest from queue
-  const joinCode = crypto.randomBytes(3).toString('hex').toUpperCase();
-  const estimatedEndTime = new Date();
-  estimatedEndTime.setMinutes(estimatedEndTime.getMinutes() + 60);
+  session.billSummary = {
+    subtotal,
+    tax,
+    tipAmount,
+    grandTotal
+  };
 
-  const newSession = await TableSession.create({
-    tableNumber: table.tableNumber,
-    hotelName: table.hotelName,
-    hostId: nextInQueue.hostId,
-    participants: [nextInQueue.hostId],
-    joinCode,
-    estimatedEndTime
+  // 3. Mark the session as completed
+  session.status = 'completed';
+  await session.save();
+
+  // 4. Notify waiters, managers, and guests
+  io.to('waiter_room').emit('table_status_changed');
+  io.to('manager_room').emit('sales_updated');
+  
+  const sessionIdStr = session._id.toString();
+  io.to(`table_room_${sessionIdStr}`).emit('session_closed', {
+    message: 'All shares settled! Thanks for dining with SmartDine. See you again!'
   });
-
-  // Update the table to occupied
-  table.status = 'occupied';
-  await table.save();
-
-  // Mark the queue entry as seated
-  nextInQueue.status = 'seated';
-  nextInQueue.allocatedTableNumber = table.tableNumber;
-  nextInQueue.targetTableId = table._id;
-  await nextInQueue.save();
-
-  // Notify the newly seated user via socket
-  io.emit('queue_seated', {
-    userId: nextInQueue.hostId.toString(),
-    session: newSession
-  });
-
-  console.log(`Queue guest ${nextInQueue.hostId} seated at Table ${table.tableNumber}.`);
 };
+
+
 
 // @desc    Get the full consolidated bill for the current session
 // @route   GET /api/payment/bill
@@ -361,29 +351,7 @@ const payShare = async (req, res) => {
     const allPaid = allParticipantIds.every(pid => session.paymentBreakdown[pid]?.paid === true);
 
     if (allPaid) {
-      // ---- SESSION CLOSURE FLOW ----
-
-      // 1. Mark all orders for this session as fully Paid
-      await Order.updateMany(
-        { sessionId: session._id },
-        { $set: { paymentStatus: 'Paid' } }
-      );
-
-      // 2. Mark the session as completed
-      session.status = 'completed';
-      await session.save();
-
-      // 3. Free the physical table and try to seat next in queue
-      const physicalTable = await Table.findOne({ tableNumber: session.tableNumber });
-      if (physicalTable) {
-        await trySeatingNextInQueue(physicalTable, io);
-      }
-
-      // 4. Notify all guests that the session is complete — everyone gets kicked to home
-      io.to(`table_room_${sessionIdStr}`).emit('session_closed', {
-        message: 'All shares settled! Thanks for dining with SmartDine. See you again!'
-      });
-
+      await finalizeAndCloseSession(session, io);
       return res.status(200).json({
         message: 'All shares settled. Session closed.',
         sessionClosed: true
@@ -401,10 +369,97 @@ const payShare = async (req, res) => {
   }
 };
 
+// @desc    A user requests to pay by cash
+// @route   POST /api/payment/request-cash
+// @access  Private
+const requestCashPayment = async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const userId = req.user._id;
+    const userIdStr = userId.toString();
+
+    const session = await findActiveSession(userId);
+    if (!session) return res.status(404).json({ message: 'No active session.' });
+    if (session.status !== 'paying') return res.status(400).json({ message: 'Checkout not initiated.' });
+
+    if (!session.paymentBreakdown) session.paymentBreakdown = {};
+    session.paymentBreakdown[userIdStr] = { cash_requested: true };
+    session.markModified('paymentBreakdown');
+    await session.save();
+
+    const sessionIdStr = session._id.toString();
+
+    io.to(`table_room_${sessionIdStr}`).emit('payment_updated', {
+      userId: userIdStr,
+      cash_requested: true,
+      paymentBreakdown: session.paymentBreakdown
+    });
+
+    io.to('waiter_room').emit('cash_requested', {
+      sessionId: sessionIdStr,
+      tableNumber: session.tableNumber,
+      userId: userIdStr
+    });
+
+    res.status(200).json({ message: 'Cash payment requested.', paymentBreakdown: session.paymentBreakdown });
+  } catch (error) {
+    console.error('Error requesting cash:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Waiter confirms cash was received
+// @route   PUT /api/payment/confirm-cash/:sessionId/:userId
+// @access  Private (Waiters)
+const confirmCashPayment = async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const { sessionId, userId: targetUserId } = req.params;
+
+    const session = await TableSession.findById(sessionId);
+    if (!session) return res.status(404).json({ message: 'Session not found.' });
+
+    if (!session.paymentBreakdown) session.paymentBreakdown = {};
+    session.paymentBreakdown[targetUserId] = {
+      paid: true,
+      paidAt: new Date().toISOString()
+    };
+    session.markModified('paymentBreakdown');
+    await session.save();
+
+    const sessionIdStr = session._id.toString();
+
+    io.to(`table_room_${sessionIdStr}`).emit('payment_updated', {
+      userId: targetUserId,
+      paid: true,
+      paymentBreakdown: session.paymentBreakdown
+    });
+
+    // Check if ALL participants have paid
+    const allParticipantIds = session.participants.map(p => p.toString());
+    const allPaid = allParticipantIds.every(pid => session.paymentBreakdown[pid]?.paid === true);
+
+    if (allPaid) {
+      await finalizeAndCloseSession(session, io);
+      return res.status(200).json({ message: 'Cash confirmed. All shares settled.', sessionClosed: true });
+    }
+
+    // Refresh waiter table view
+    io.to('waiter_room').emit('table_status_changed');
+    
+    res.status(200).json({ message: 'Cash confirmed.', sessionClosed: false });
+  } catch (error) {
+    console.error('Error confirming cash:', error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getBill,
   setSplitMethod,
   setTip,
   createPaymentIntent,
-  payShare
+  payShare,
+  requestCashPayment,
+  confirmCashPayment
 };

@@ -46,6 +46,10 @@ const joinQueue = async (req, res) => {
       availableTable.status = 'occupied';
       await availableTable.save();
 
+      // Emit to waiters that a table became occupied
+      const io = req.app.get('io');
+      io.to('waiter_room').emit('table_status_changed');
+
       // Update user's current session
       req.user.currentSessionId = newSession._id;
       await req.user.save();
@@ -134,15 +138,21 @@ const validateRestaurantCode = async (req, res) => {
   try {
     const { restaurantCode } = req.body;
 
-    if (!restaurantCode) {
-      return res.status(400).json({ message: 'Please provide a restaurant code.' });
+    if (!restaurantCode || restaurantCode.trim().length < 3) {
+      return res.status(400).json({ message: 'Please provide a valid restaurant code (min 3 chars).' });
     }
 
-    if (restaurantCode.toUpperCase() === 'TAJ-001') {
-      return res.status(200).json({ status: 'success', message: 'Code validated successfully.' });
-    } else {
-      return res.status(400).json({ status: 'error', message: 'Invalid restaurant code. Please try again.' });
-    }
+    // In a fully-fledged multi-tenant system, this would query a Hotel/Restaurant model:
+    // const restaurant = await Restaurant.findOne({ code: restaurantCode.toUpperCase() });
+    // if (!restaurant) return res.status(404)...
+    
+    // For now, we simulate that any valid formatted code corresponds to a restaurant
+    return res.status(200).json({ 
+      status: 'success', 
+      message: 'Code validated successfully.',
+      code: restaurantCode.toUpperCase()
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
